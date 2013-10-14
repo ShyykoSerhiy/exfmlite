@@ -1,3 +1,10 @@
+/**
+ * constant, which is used in emulating ended event
+ * @type {number}
+ */
+var TOLLERANCE_PLAYING = 0.5;
+var MAX_RETRY = 5;
+
 String.prototype.format = function () {
     var s = this;
     for (var i = 0; i < arguments.length; i++) {
@@ -6,6 +13,10 @@ String.prototype.format = function () {
     }
 
     return s;
+}
+
+function log(message) {
+    console.log(message);
 }
 
 
@@ -33,13 +44,17 @@ function getNextToBeActiveAudio() {
 var manualSwitchingPending = false;
 /**
  * Switches active audio
- * @param newSource
+ * @param index
  */
-function switchActiveAudio(newSource) {
+function switchActiveAudio(index) {
     function switchActiveAudio() {
         currentActiveAudioNumber = getNextToBeActiveAudioNumber();
     }
 
+    var selected = $('.selected').removeClass('selected');
+    $('.song:eq(' + index + ')').addClass('selected');
+
+    var newSource = songs[index].url;
     var nextActiveAudio = getNextToBeActiveAudio();
     var currentActiveAudio = getCurrentActiveAudio();
     nextActiveAudio.src = newSource;
@@ -66,6 +81,7 @@ function switchActiveAudio(newSource) {
         nextActiveAudio.play();
         switchActiveAudio();
     }
+    initialize();
 }
 
 /**
@@ -78,15 +94,9 @@ function createSongsList() {
         tbody.append(rowTemplate.format(song.artist, song.title));
     }
     $('.song').click(function () {
-        var selected = $('.selected').removeClass('selected');
 
         var index = $('.song').index(this);
-        $(this).addClass('selected');
-
-        /*var audioElement = $('#')[0];
-         audioElement.src = songs[index].url;
-         audioElement.play();*/
-        switchActiveAudio(songs[index].url);
+        switchActiveAudio(index);
     });
 }
 
@@ -112,7 +122,7 @@ function loadSongs() {
     function onGetSongs(data, textStatus, jqXHR) {
         songs = songs.concat(data.songs);
         var newStart = data.songs.length + data.start;
-        if (newStart < data.total) {
+        if (newStart < /*data.total*/30) {
             getSongs(newStart, onGetSongs)
         } else {
             createSongsList();
@@ -141,4 +151,36 @@ function loadSongs() {
      }
      );*/
 
+}
+
+function initialize() {
+    //emulating ended event (html5 version isn't working properly)
+    var failedNumber = 0;      //TODO CHECK ENDED
+    var currentNumber = $('.song').index($('.selected'));
+    var next = songs.length > currentNumber + 1 ? currentNumber + 1 : 0;
+
+    var endedInterval = setInterval(function () {
+            var currentActiveAudio = getCurrentActiveAudio();
+            var toSwitch = false;
+            if (!currentActiveAudio.paused) {
+                if (Math.abs(currentActiveAudio.currentTime - currentActiveAudio.duration) < TOLLERANCE_PLAYING) {
+                    toSwitch = true;
+                    log("Time to switch" + currentActiveAudio.currentTime + " index " + currentActiveAudioNumber);
+                }
+            }
+            if (!currentActiveAudio.duration) {
+                if (failedNumber = MAX_RETRY) {
+                    toSwitch = true;
+                    log("Invalid duration" + currentActiveAudio.duration + " index " + currentActiveAudioNumber);
+                }
+                failedNumber++;
+            }
+
+            if (toSwitch) {
+                clearInterval(endedInterval);
+                switchActiveAudio(next);
+            }
+
+        }, 300
+    );
 }
